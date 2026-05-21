@@ -1,0 +1,32 @@
+name: projectsynthese
+description: "Train Your Heart - A simple running tracker."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  geolocator: ^13.0.1
+  shared_preferences: ^2.3.2
+  intl: ^0.19.0
+  crypto: ^3.0.6
+  local_auth: ^2.3.0
+  fl_chart: ^0.69.0
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
+  screenshot: ^3.0.0
+  share_plus: ^10.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
