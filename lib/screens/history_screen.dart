@@ -31,6 +31,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _load();
+    StorageService.runsChanged.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    StorageService.runsChanged.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -192,9 +199,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               padding: EdgeInsets.fromLTRB(
                                   16, 8, 16, bottomPad),
                               child: SingleChildScrollView(
-                                child: _RunCalendar(
-                                  runsByDay: _runsByDay,
-                                  onDayTap: _onCalendarDayTap,
+                                child: RepaintBoundary(
+                                  child: _RunCalendar(
+                                    runsByDay: _runsByDay,
+                                    onDayTap: _onCalendarDayTap,
+                                  ),
                                 ),
                               ),
                             )
@@ -210,7 +219,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     return Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 16),
-                                      child: _Last14DaysChart(data: _last14),
+                                      child: RepaintBoundary(
+                                        child: _Last14DaysChart(data: _last14),
+                                      ),
                                     );
                                   }
                                   final r = _runs[i - 1];

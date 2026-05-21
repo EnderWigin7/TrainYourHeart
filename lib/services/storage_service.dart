@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/run.dart';
 import '../models/user_profile.dart';
@@ -38,6 +39,10 @@ class StorageService {
   static const _kAutoPause = 'autoPause';
   static const _kHapticFeedback = 'hapticFeedback';
   static const _kOnboardingDone = 'onboardingDone';
+
+  /// Bumped whenever the run list mutates (add, wipe).
+  /// Screens that show runs can listen and reload on change.
+  static final ValueNotifier<int> runsChanged = ValueNotifier<int>(0);
 
   Future<UserProfile?> loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -110,6 +115,7 @@ class StorageService {
     await prefs.remove(_kAutoPause);
     await prefs.remove(_kHapticFeedback);
     // Keep _kOnboardingDone — wiping data shouldn't re-show onboarding.
+    runsChanged.value++;
   }
 
   Future<List<Run>> loadRuns() async {
@@ -126,6 +132,7 @@ class StorageService {
     final list = prefs.getStringList(_kRuns) ?? [];
     list.add(json.encode(run.toJson()));
     await prefs.setStringList(_kRuns, list);
+    runsChanged.value++;
   }
 
   Future<double> todaysDistanceKm() async {

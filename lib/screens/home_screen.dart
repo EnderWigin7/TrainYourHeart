@@ -23,6 +23,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _refresh();
+    StorageService.runsChanged.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    StorageService.runsChanged.removeListener(_refresh);
+    super.dispose();
   }
 
   Future<void> _refresh() async {

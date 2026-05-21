@@ -156,7 +156,9 @@ class RunDetailScreen extends StatelessWidget {
                   else
                     SizedBox(
                       height: 180,
-                      child: _PaceChart(splits: run.splits),
+                      child: RepaintBoundary(
+                        child: _PaceChart(splits: run.splits),
+                      ),
                     ),
                 ],
               ),

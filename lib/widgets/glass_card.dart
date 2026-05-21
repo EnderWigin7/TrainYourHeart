@@ -13,7 +13,7 @@ class GlassCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.borderRadius = 28,
-    this.blur = 12,
+    this.blur = 8,
     this.color,
   });
 

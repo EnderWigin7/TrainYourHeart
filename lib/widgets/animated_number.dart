@@ -16,6 +16,9 @@ class AnimatedNumber extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (value == 0) {
+      return Text(formatter(0), style: style);
+    }
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: value),
       duration: duration,

@@ -14,37 +14,24 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  final _pages = const [
+  static const _pages = [
     HomeScreen(),
     HistoryScreen(),
     ProfileScreen(),
   ];
 
   @override
-  void initState() {
-    super.initState();
-    HomeShell.controller.addListener(_onControllerChanged);
-  }
-
-  @override
-  void dispose() {
-    HomeShell.controller.removeListener(_onControllerChanged);
-    super.dispose();
-  }
-
-  void _onControllerChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-          index: HomeShell.controller.value, children: _pages),
+      body: ValueListenableBuilder<int>(
+        valueListenable: HomeShell.controller,
+        builder: (_, index, _) =>
+            IndexedStack(index: index, children: _pages),
+      ),
       bottomNavigationBar: ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: DecoratedBox(
             decoration: BoxDecoration(
               border: Border(
@@ -54,23 +41,26 @@ class _HomeShellState extends State<HomeShell> {
                 ),
               ),
             ),
-            child: BottomNavigationBar(
-              currentIndex: HomeShell.controller.value,
-              onTap: (i) => HomeShell.controller.value = i,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.directions_run),
-                  label: 'Accueil',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.history),
-                  label: 'Historique',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Profil',
-                ),
-              ],
+            child: ValueListenableBuilder<int>(
+              valueListenable: HomeShell.controller,
+              builder: (_, index, _) => BottomNavigationBar(
+                currentIndex: index,
+                onTap: (i) => HomeShell.controller.value = i,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.directions_run),
+                    label: 'Accueil',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.history),
+                    label: 'Historique',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.person),
+                    label: 'Profil',
+                  ),
+                ],
+              ),
             ),
           ),
         ),
