@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/user_profile.dart';
 import '../services/profile_photo_service.dart';
 import '../services/storage_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 import 'settings_screen.dart';
 
@@ -29,6 +30,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _weightCtrl;
   late TextEditingController _ageCtrl;
   late TextEditingController _goalCtrl;
+  late TextEditingController _weeklyGoalCtrl;
+  late TextEditingController _monthlyGoalCtrl;
 
   @override
   void initState() {
@@ -38,41 +41,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _weightCtrl = TextEditingController();
     _ageCtrl = TextEditingController();
     _goalCtrl = TextEditingController();
+    _weeklyGoalCtrl = TextEditingController();
+    _monthlyGoalCtrl = TextEditingController();
+    UnitsService.instance.addListener(_onUnitsChanged);
     _load();
+  }
+
+  void _onUnitsChanged() {
+    if (!mounted) return;
+    final units = UnitsService.instance;
+    setState(() {
+      _goalCtrl.text =
+          units.distance(_profile.dailyGoalKm).toStringAsFixed(1);
+      _weeklyGoalCtrl.text =
+          units.distance(_profile.weeklyGoalKm).toStringAsFixed(0);
+      _monthlyGoalCtrl.text =
+          units.distance(_profile.monthlyGoalKm).toStringAsFixed(0);
+    });
   }
 
   Future<void> _load() async {
     final p = await _storage.loadProfile();
     if (!mounted) return;
+    final units = UnitsService.instance;
     setState(() {
       _profile = p ?? UserProfile.empty;
       _usernameCtrl.text = _profile.username;
       _emailCtrl.text = _profile.email;
       _weightCtrl.text = _profile.weightKg.toString();
       _ageCtrl.text = _profile.age.toString();
-      _goalCtrl.text = _profile.dailyGoalKm.toString();
+      _goalCtrl.text =
+          units.distance(_profile.dailyGoalKm).toStringAsFixed(1);
+      _weeklyGoalCtrl.text =
+          units.distance(_profile.weeklyGoalKm).toStringAsFixed(0);
+      _monthlyGoalCtrl.text =
+          units.distance(_profile.monthlyGoalKm).toStringAsFixed(0);
       _loading = false;
     });
   }
 
   @override
   void dispose() {
+    UnitsService.instance.removeListener(_onUnitsChanged);
     _usernameCtrl.dispose();
     _emailCtrl.dispose();
     _weightCtrl.dispose();
     _ageCtrl.dispose();
     _goalCtrl.dispose();
+    _weeklyGoalCtrl.dispose();
+    _monthlyGoalCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final units = UnitsService.instance;
     final updated = _profile.copyWith(
       username: _usernameCtrl.text.trim(),
       email: _emailCtrl.text.trim(),
       weightKg: double.parse(_weightCtrl.text.replaceAll(',', '.')),
       age: int.parse(_ageCtrl.text),
-      dailyGoalKm: double.parse(_goalCtrl.text.replaceAll(',', '.')),
+      dailyGoalKm: units.distanceToKm(
+          double.parse(_goalCtrl.text.replaceAll(',', '.'))),
+      weeklyGoalKm: units.distanceToKm(
+          double.parse(_weeklyGoalCtrl.text.replaceAll(',', '.'))),
+      monthlyGoalKm: units.distanceToKm(
+          double.parse(_monthlyGoalCtrl.text.replaceAll(',', '.'))),
     );
     try {
       await _storage.saveProfile(updated);
@@ -253,15 +287,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            const _SectionLabel('OBJECTIF'),
+            const _SectionLabel('OBJECTIFS'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _goalCtrl,
-              decoration: const InputDecoration(
-                  labelText: 'Objectif quotidien (km)'),
+              decoration: InputDecoration(
+                  labelText:
+                      'Objectif quotidien (${UnitsService.instance.distanceUnit()})'),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) => _validateDouble(v, min: 0.1, max: 100),
+              validator: (v) => _validateDouble(v, min: 0.1, max: 200),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _weeklyGoalCtrl,
+              decoration: InputDecoration(
+                  labelText:
+                      'Objectif hebdomadaire (${UnitsService.instance.distanceUnit()})'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: (v) => _validateDouble(v, min: 1, max: 1500),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _monthlyGoalCtrl,
+              decoration: InputDecoration(
+                  labelText:
+                      'Objectif mensuel (${UnitsService.instance.distanceUnit()})'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: (v) => _validateDouble(v, min: 1, max: 5000),
             ),
             const SizedBox(height: 32),
             ElevatedButton(

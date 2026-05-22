@@ -6,6 +6,8 @@ class UserProfile {
   final double weightKg;
   final int age;
   final double dailyGoalKm;
+  final double weeklyGoalKm;
+  final double monthlyGoalKm;
   final String? photoPath;
 
   const UserProfile({
@@ -16,6 +18,8 @@ class UserProfile {
     required this.weightKg,
     required this.age,
     required this.dailyGoalKm,
+    this.weeklyGoalKm = 20,
+    this.monthlyGoalKm = 80,
     this.photoPath,
   });
 
@@ -27,6 +31,8 @@ class UserProfile {
     double? weightKg,
     int? age,
     double? dailyGoalKm,
+    double? weeklyGoalKm,
+    double? monthlyGoalKm,
     String? photoPath,
     bool clearPhoto = false,
   }) {
@@ -38,6 +44,8 @@ class UserProfile {
       weightKg: weightKg ?? this.weightKg,
       age: age ?? this.age,
       dailyGoalKm: dailyGoalKm ?? this.dailyGoalKm,
+      weeklyGoalKm: weeklyGoalKm ?? this.weeklyGoalKm,
+      monthlyGoalKm: monthlyGoalKm ?? this.monthlyGoalKm,
       photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
@@ -50,6 +58,8 @@ class UserProfile {
         'weightKg': weightKg,
         'age': age,
         'dailyGoalKm': dailyGoalKm,
+        'weeklyGoalKm': weeklyGoalKm,
+        'monthlyGoalKm': monthlyGoalKm,
         'photoPath': photoPath,
       };
 
@@ -61,6 +71,8 @@ class UserProfile {
         weightKg: (json['weightKg'] as num?)?.toDouble() ?? 70,
         age: (json['age'] as num?)?.toInt() ?? 25,
         dailyGoalKm: (json['dailyGoalKm'] as num?)?.toDouble() ?? 3.0,
+        weeklyGoalKm: (json['weeklyGoalKm'] as num?)?.toDouble() ?? 20,
+        monthlyGoalKm: (json['monthlyGoalKm'] as num?)?.toDouble() ?? 80,
         photoPath: json['photoPath'] as String?,
       );
 
@@ -72,5 +84,7 @@ class UserProfile {
     weightKg: 70,
     age: 25,
     dailyGoalKm: 3.0,
+    weeklyGoalKm: 20,
+    monthlyGoalKm: 80,
   );
 }

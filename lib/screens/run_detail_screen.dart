@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/run.dart';
 import '../services/run_share_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 
 class RunDetailScreen extends StatelessWidget {
@@ -49,7 +50,8 @@ class RunDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avgPace = run.averageSpeedKmh > 0 ? 60.0 / run.averageSpeedKmh : 0;
+    final units = UnitsService.instance;
+    final avgPace = units.paceMinPerUnit(run.averageSpeedKmh);
     final dateLabel =
         DateFormat('EEEE d MMMM yyyy, HH:mm', 'fr_FR').format(run.startTime);
     return Scaffold(
@@ -86,7 +88,7 @@ class RunDetailScreen extends StatelessWidget {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        run.distanceKm.toStringAsFixed(2),
+                        units.distance(run.distanceKm).toStringAsFixed(2),
                         style: const TextStyle(
                           fontSize: 56,
                           fontWeight: FontWeight.w900,
@@ -94,9 +96,9 @@ class RunDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
-                        'km',
-                        style: TextStyle(
+                      Text(
+                        units.distanceUnit(),
+                        style: const TextStyle(
                           fontSize: 22,
                           color: AppColors.subtleGrey,
                         ),
@@ -113,7 +115,7 @@ class RunDetailScreen extends StatelessWidget {
                       ),
                       _DetailStat(
                         label: 'ALLURE',
-                        value: '${_fmtPace(avgPace.toDouble())} /km',
+                        value: '${_fmtPace(avgPace)} /${units.distanceUnit()}',
                       ),
                       _DetailStat(
                         label: 'KCAL',

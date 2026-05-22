@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/run.dart';
 import '../services/run_tracker.dart';
 import '../services/storage_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 
 class RunScreen extends StatefulWidget {
@@ -170,8 +171,10 @@ class _RunScreenState extends State<RunScreen> {
               const SizedBox(height: 40),
               _BigMetric(
                 label: 'DISTANCE',
-                value: tracker.distanceKm.toStringAsFixed(2),
-                unit: 'km',
+                value: UnitsService.instance
+                    .distance(tracker.distanceKm)
+                    .toStringAsFixed(2),
+                unit: UnitsService.instance.distanceUnit(),
               ),
               const SizedBox(height: 24),
               Row(
@@ -179,8 +182,10 @@ class _RunScreenState extends State<RunScreen> {
                   Expanded(
                     child: _MetricTile(
                       label: 'VITESSE',
-                      value: tracker.currentSpeedKmh.toStringAsFixed(1),
-                      unit: 'km/h',
+                      value: UnitsService.instance
+                          .speed(tracker.currentSpeedKmh)
+                          .toStringAsFixed(1),
+                      unit: UnitsService.instance.speedUnit(),
                     ),
                   ),
                   const SizedBox(width: 12),

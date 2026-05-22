@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/biometric_service.dart';
 import '../services/profile_photo_service.dart';
 import '../services/storage_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 import 'change_password_screen.dart';
 import 'login_screen.dart';
@@ -241,6 +242,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: Column(
               children: [
+                ListenableBuilder(
+                  listenable: UnitsService.instance,
+                  builder: (_, _) => SwitchListTile(
+                    value: UnitsService.instance.imperial,
+                    onChanged: (v) =>
+                        UnitsService.instance.setImperial(v),
+                    activeThumbColor: AppColors.stravaOrange,
+                    title: const Text('Unités impériales'),
+                    subtitle: Text(
+                      UnitsService.instance.imperial
+                          ? 'Distances en miles (mi)'
+                          : 'Distances en kilomètres (km)',
+                      style: const TextStyle(
+                          color: AppColors.subtleGrey, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const Divider(height: 0, color: Colors.white12),
                 SwitchListTile(
                   value: _autoPause,
                   onChanged: _toggleAutoPause,

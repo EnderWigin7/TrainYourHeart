@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/storage_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/animated_number.dart';
 import 'run_screen.dart';
@@ -24,12 +25,18 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _refresh();
     StorageService.runsChanged.addListener(_refresh);
+    UnitsService.instance.addListener(_onUnitsChanged);
   }
 
   @override
   void dispose() {
     StorageService.runsChanged.removeListener(_refresh);
+    UnitsService.instance.removeListener(_onUnitsChanged);
     super.dispose();
+  }
+
+  void _onUnitsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _refresh() async {
@@ -62,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    final units = UnitsService.instance;
     final goal = _profile.dailyGoalKm;
     final progress = goal <= 0 ? 0.0 : (_todayKm / goal).clamp(0.0, 1.0);
     final completed = _todayKm >= goal;
@@ -79,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
             16,
             MediaQuery.of(context).padding.bottom +
                 kBottomNavigationBarHeight +
-                16,
+                32,
           ),
           children: [
             Text(
@@ -101,9 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
               todayKm: _todayKm,
               progress: progress,
               completed: completed,
+              units: units,
             ),
             const SizedBox(height: 16),
-            _SummaryTiles(stats: _stats),
+            _SummaryTiles(stats: _stats, profile: _profile),
             const SizedBox(height: 16),
             _PersonalBestsCard(stats: _stats),
             const SizedBox(height: 24),
@@ -129,11 +138,13 @@ class _GoalCard extends StatelessWidget {
   final double todayKm;
   final double progress;
   final bool completed;
+  final UnitsService units;
   const _GoalCard({
     required this.goalKm,
     required this.todayKm,
     required this.progress,
     required this.completed,
+    required this.units,
   });
 
   @override
@@ -167,7 +178,7 @@ class _GoalCard extends StatelessWidget {
               textBaseline: TextBaseline.alphabetic,
               children: [
                 AnimatedNumber(
-                  value: todayKm,
+                  value: units.distance(todayKm),
                   formatter: (v) => v.toStringAsFixed(2),
                   style: const TextStyle(
                     fontSize: 48,
@@ -176,7 +187,7 @@ class _GoalCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  ' / ${goalKm.toStringAsFixed(1)} km',
+                  ' / ${units.distance(goalKm).toStringAsFixed(1)} ${units.distanceUnit()}',
                   style: const TextStyle(
                     fontSize: 20,
                     color: AppColors.subtleGrey,
@@ -199,7 +210,7 @@ class _GoalCard extends StatelessWidget {
             Text(
               completed
                   ? 'Objectif atteint ! Excellent travail.'
-                  : '${(goalKm - todayKm).toStringAsFixed(2)} km restants',
+                  : '${units.distance(goalKm - todayKm).toStringAsFixed(2)} ${units.distanceUnit()} restants',
               style: TextStyle(
                 color: completed
                     ? AppColors.stravaOrange
@@ -217,10 +228,12 @@ class _GoalCard extends StatelessWidget {
 
 class _SummaryTiles extends StatelessWidget {
   final Stats stats;
-  const _SummaryTiles({required this.stats});
+  final UserProfile profile;
+  const _SummaryTiles({required this.stats, required this.profile});
 
   @override
   Widget build(BuildContext context) {
+    final units = UnitsService.instance;
     return Row(
       children: [
         Expanded(
@@ -230,6 +243,7 @@ class _SummaryTiles extends StatelessWidget {
             value: stats.streakDays.toDouble(),
             format: (v) => v.toInt().toString(),
             unit: stats.streakDays == 1 ? 'jour' : 'jours',
+            goal: 0,
           ),
         ),
         const SizedBox(width: 12),
@@ -237,9 +251,10 @@ class _SummaryTiles extends StatelessWidget {
           child: _SummaryTile(
             icon: Icons.calendar_view_week,
             label: 'SEMAINE',
-            value: stats.weekKm,
+            value: units.distance(stats.weekKm),
             format: (v) => v.toStringAsFixed(1),
-            unit: 'km',
+            unit: units.distanceUnit(),
+            goal: units.distance(profile.weeklyGoalKm),
           ),
         ),
         const SizedBox(width: 12),
@@ -247,9 +262,10 @@ class _SummaryTiles extends StatelessWidget {
           child: _SummaryTile(
             icon: Icons.calendar_month,
             label: 'MOIS',
-            value: stats.monthKm,
+            value: units.distance(stats.monthKm),
             format: (v) => v.toStringAsFixed(1),
-            unit: 'km',
+            unit: units.distanceUnit(),
+            goal: units.distance(profile.monthlyGoalKm),
           ),
         ),
       ],
@@ -263,12 +279,14 @@ class _SummaryTile extends StatelessWidget {
   final double value;
   final String Function(double) format;
   final String unit;
+  final double goal;
   const _SummaryTile({
     required this.icon,
     required this.label,
     required this.value,
     required this.format,
     required this.unit,
+    required this.goal,
   });
 
   @override
@@ -316,6 +334,27 @@ class _SummaryTile extends StatelessWidget {
                 ),
               ],
             ),
+            if (goal > 0) ...[
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (value / goal).clamp(0.0, 1.0),
+                  minHeight: 4,
+                  backgroundColor: Colors.white12,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.stravaOrange),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '/ ${goal.toStringAsFixed(0)} $unit',
+                style: const TextStyle(
+                  color: AppColors.subtleGrey,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -368,13 +407,15 @@ class _PersonalBestsCard extends StatelessWidget {
                 children: [
                   _BestStat(
                     label: 'Distance',
-                    value: stats.longestRunKm,
-                    format: (v) => '${v.toStringAsFixed(2)} km',
+                    value: UnitsService.instance.distance(stats.longestRunKm),
+                    format: (v) =>
+                        '${v.toStringAsFixed(2)} ${UnitsService.instance.distanceUnit()}',
                   ),
                   _BestStat(
                     label: 'Vitesse',
-                    value: stats.fastestSpeedKmh,
-                    format: (v) => '${v.toStringAsFixed(1)} km/h',
+                    value: UnitsService.instance.speed(stats.fastestSpeedKmh),
+                    format: (v) =>
+                        '${v.toStringAsFixed(1)} ${UnitsService.instance.speedUnit()}',
                   ),
                   _BestStat(
                     label: 'Kcal',

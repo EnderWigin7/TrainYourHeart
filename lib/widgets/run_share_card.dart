@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../models/run.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 
 class RunShareCard extends StatelessWidget {
@@ -18,18 +19,16 @@ class RunShareCard extends StatelessWidget {
     return '${m}m ${s.toString().padLeft(2, '0')}s';
   }
 
-  String _fmtPace(Run r) {
-    if (r.averageSpeedKmh <= 0) return '--:--';
-    final minPerKm = 60.0 / r.averageSpeedKmh;
-    final m = minPerKm.floor();
-    final s = ((minPerKm - m) * 60).round();
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
+    final units = UnitsService.instance;
     final dateLabel =
         DateFormat('EEEE d MMMM, HH:mm', 'fr_FR').format(run.startTime);
+    final distanceValue = units.distance(run.distanceKm).toStringAsFixed(2);
+    final pace = units.paceMinPerUnit(run.averageSpeedKmh);
+    final paceLabel = pace > 0
+        ? '${pace.floor()}:${((pace - pace.floor()) * 60).round().toString().padLeft(2, '0')} /${units.distanceUnit()}'
+        : '--:-- /${units.distanceUnit()}';
     return MediaQuery(
       data: const MediaQueryData(),
       child: Directionality(
@@ -70,19 +69,19 @@ class RunShareCard extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(64),
+                  padding: const EdgeInsets.all(56),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           const Icon(Icons.favorite,
-                              color: AppColors.stravaOrange, size: 42),
+                              color: AppColors.stravaOrange, size: 40),
                           const SizedBox(width: 12),
                           const Text(
                             'TRAIN YOUR HEART',
                             style: TextStyle(
-                              fontSize: 28,
+                              fontSize: 26,
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
                               letterSpacing: 2,
@@ -90,63 +89,79 @@ class RunShareCard extends StatelessWidget {
                           ),
                           const Spacer(),
                           if (username.isNotEmpty)
-                            Text(
-                              '@$username',
-                              style: const TextStyle(
-                                color: AppColors.subtleGrey,
-                                fontSize: 24,
+                            Flexible(
+                              child: Text(
+                                '@$username',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: const TextStyle(
+                                  color: AppColors.subtleGrey,
+                                  fontSize: 22,
+                                ),
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 56),
                       Text(
                         dateLabel,
                         style: const TextStyle(
                           color: AppColors.subtleGrey,
-                          fontSize: 28,
+                          fontSize: 26,
                           letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            run.distanceKm.toStringAsFixed(2),
-                            style: const TextStyle(
-                              fontSize: 220,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              height: 1,
+                      const SizedBox(height: 16),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              distanceValue,
+                              style: const TextStyle(
+                                fontSize: 200,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                height: 1,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Text(
-                            'km',
-                            style: TextStyle(
-                              fontSize: 48,
-                              color: AppColors.subtleGrey,
+                            const SizedBox(width: 16),
+                            Text(
+                              units.distanceUnit(),
+                              style: const TextStyle(
+                                fontSize: 44,
+                                color: AppColors.subtleGrey,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 48),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _StatBlock(
-                            label: 'DURÉE',
-                            value: _fmtDuration(run.duration),
+                          Expanded(
+                            child: _StatBlock(
+                              label: 'DURÉE',
+                              value: _fmtDuration(run.duration),
+                            ),
                           ),
-                          _StatBlock(
-                            label: 'ALLURE',
-                            value: '${_fmtPace(run)} /km',
+                          Expanded(
+                            child: _StatBlock(
+                              label: 'ALLURE',
+                              value: paceLabel,
+                            ),
                           ),
-                          _StatBlock(
-                            label: 'KCAL',
-                            value: run.caloriesBurned.toStringAsFixed(0),
+                          Expanded(
+                            child: _StatBlock(
+                              label: 'KCAL',
+                              value: run.caloriesBurned.toStringAsFixed(0),
+                            ),
                           ),
                         ],
                       ),
@@ -154,7 +169,7 @@ class RunShareCard extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            width: 64,
+                            width: 56,
                             height: 4,
                             color: AppColors.stravaOrange,
                           ),
@@ -163,7 +178,7 @@ class RunShareCard extends StatelessWidget {
                             'Run. Track. Progress.',
                             style: TextStyle(
                               color: AppColors.subtleGrey,
-                              fontSize: 22,
+                              fontSize: 20,
                               letterSpacing: 2,
                             ),
                           ),
@@ -196,17 +211,21 @@ class _StatBlock extends StatelessWidget {
           style: const TextStyle(
             color: AppColors.subtleGrey,
             letterSpacing: 2,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 56,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
           ),
         ),
       ],

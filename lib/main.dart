@@ -5,12 +5,14 @@ import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/biometric_service.dart';
 import 'services/storage_service.dart';
+import 'services/units_service.dart';
 import 'theme.dart';
 import 'widgets/app_gradient_background.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR', null);
+  await UnitsService.instance.load();
   runApp(const TrainYourHeartApp());
 }
 

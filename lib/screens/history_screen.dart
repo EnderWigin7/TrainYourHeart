@@ -5,6 +5,7 @@ import '../models/run.dart';
 import '../models/user_profile.dart';
 import '../services/run_share_service.dart';
 import '../services/storage_service.dart';
+import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/empty_state.dart';
 import 'home_shell.dart';
@@ -32,12 +33,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.initState();
     _load();
     StorageService.runsChanged.addListener(_load);
+    UnitsService.instance.addListener(_onUnitsChanged);
   }
 
   @override
   void dispose() {
     StorageService.runsChanged.removeListener(_load);
+    UnitsService.instance.removeListener(_onUnitsChanged);
     super.dispose();
+  }
+
+  void _onUnitsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -136,7 +143,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     color: AppColors.stravaOrange),
                 title: Text(DateFormat('HH:mm').format(r.startTime)),
                 subtitle: Text(
-                  '${r.distanceKm.toStringAsFixed(2)} km · ${_fmtDuration(r.duration)}',
+                  '${UnitsService.instance.formatDistance(r.distanceKm)} · ${_fmtDuration(r.duration)}',
                   style: const TextStyle(
                       color: AppColors.subtleGrey, fontSize: 12),
                 ),
@@ -153,7 +160,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom +
         kBottomNavigationBarHeight +
-        16;
+        32;
     return Scaffold(
       appBar: AppBar(title: const Text('HISTORIQUE')),
       body: _loading
@@ -276,8 +283,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                 children: [
                                                   _Stat(
                                                     label: 'Distance',
-                                                    value:
-                                                        '${r.distanceKm.toStringAsFixed(2)} km',
+                                                    value: UnitsService
+                                                        .instance
+                                                        .formatDistance(
+                                                            r.distanceKm),
                                                   ),
                                                   _Stat(
                                                     label: 'Durée',
@@ -286,8 +295,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                   ),
                                                   _Stat(
                                                     label: 'Vitesse',
-                                                    value:
-                                                        '${r.averageSpeedKmh.toStringAsFixed(1)} km/h',
+                                                    value: UnitsService
+                                                        .instance
+                                                        .formatSpeed(r
+                                                            .averageSpeedKmh),
                                                   ),
                                                   _Stat(
                                                     label: 'Kcal',
@@ -487,11 +498,12 @@ class _Last14DaysChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = UnitsService.instance;
     final days = data.keys.toList()..sort();
-    final maxValue = data.values.isEmpty
+    final maxValueKm = data.values.isEmpty
         ? 1.0
         : data.values.reduce((a, b) => a > b ? a : b);
-    final maxY = maxValue <= 0 ? 1.0 : (maxValue * 1.2);
+    final maxY = maxValueKm <= 0 ? 1.0 : (units.distance(maxValueKm) * 1.2);
 
     return Card(
       child: Padding(
@@ -530,7 +542,7 @@ class _Last14DaysChart extends StatelessWidget {
                         final label =
                             DateFormat('d MMM', 'fr_FR').format(day);
                         return BarTooltipItem(
-                          '$label\n${rod.toY.toStringAsFixed(2)} km',
+                          '$label\n${rod.toY.toStringAsFixed(2)} ${units.distanceUnit()}',
                           const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -582,7 +594,7 @@ class _Last14DaysChart extends StatelessWidget {
                         x: i,
                         barRods: [
                           BarChartRodData(
-                            toY: data[days[i]] ?? 0,
+                            toY: units.distance(data[days[i]] ?? 0),
                             color: AppColors.stravaOrange,
                             width: 10,
                             borderRadius: const BorderRadius.vertical(
