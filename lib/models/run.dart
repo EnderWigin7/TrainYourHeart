@@ -1,3 +1,5 @@
+import 'package:latlong2/latlong.dart';
+
 class KmSplit {
   final int km;
   final Duration duration;
@@ -26,6 +28,7 @@ class Run {
   final List<KmSplit> splits;
   final String? note;
   final int? difficulty;
+  final List<LatLng> points;
 
   Run({
     required this.id,
@@ -37,6 +40,7 @@ class Run {
     this.splits = const [],
     this.note,
     this.difficulty,
+    this.points = const [],
   });
 
   double get distanceKm => distanceMeters / 1000.0;
@@ -51,20 +55,34 @@ class Run {
         'splits': splits.map((s) => s.toJson()).toList(),
         'note': note,
         'difficulty': difficulty,
+        'points': points
+            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+            .toList(),
       };
 
   factory Run.fromJson(Map<String, dynamic> json) => Run(
         id: json['id'] as String,
         startTime: DateTime.parse(json['startTime'] as String),
-        duration: Duration(seconds: json['durationSeconds'] as int),
+        duration: Duration(seconds: (json['durationSeconds'] as num).toInt()),
         distanceMeters: (json['distanceMeters'] as num).toDouble(),
         caloriesBurned: (json['caloriesBurned'] as num).toDouble(),
         averageSpeedKmh: (json['averageSpeedKmh'] as num).toDouble(),
         splits: (json['splits'] as List?)
-                ?.map((e) => KmSplit.fromJson(e as Map<String, dynamic>))
+                ?.map((e) => KmSplit.fromJson(
+                    (e as Map).cast<String, dynamic>()))
                 .toList() ??
             const [],
         note: json['note'] as String?,
         difficulty: (json['difficulty'] as num?)?.toInt(),
+        points: (json['points'] as List?)
+                ?.map((e) {
+                  final m = (e as Map).cast<String, dynamic>();
+                  return LatLng(
+                    (m['lat'] as num).toDouble(),
+                    (m['lng'] as num).toDouble(),
+                  );
+                })
+                .toList() ??
+            const [],
       );
 }

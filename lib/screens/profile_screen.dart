@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import '../models/user_profile.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../services/profile_photo_service.dart';
-import '../services/storage_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
+import '../widgets/animated_number.dart';
+import 'profile_edit_screen.dart';
 import 'settings_screen.dart';
-
-final _emailRegExp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,110 +20,41 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _storage = StorageService();
+  final _firestore = FirestoreService();
   final _photo = ProfilePhotoService();
-  final _formKey = GlobalKey<FormState>();
 
   UserProfile _profile = UserProfile.empty;
+  LifetimeStats _lifetime = LifetimeStats.empty;
   bool _loading = true;
-
-  late TextEditingController _usernameCtrl;
-  late TextEditingController _emailCtrl;
-  late TextEditingController _weightCtrl;
-  late TextEditingController _ageCtrl;
-  late TextEditingController _goalCtrl;
-  late TextEditingController _weeklyGoalCtrl;
-  late TextEditingController _monthlyGoalCtrl;
 
   @override
   void initState() {
     super.initState();
-    _usernameCtrl = TextEditingController();
-    _emailCtrl = TextEditingController();
-    _weightCtrl = TextEditingController();
-    _ageCtrl = TextEditingController();
-    _goalCtrl = TextEditingController();
-    _weeklyGoalCtrl = TextEditingController();
-    _monthlyGoalCtrl = TextEditingController();
-    UnitsService.instance.addListener(_onUnitsChanged);
     _load();
-  }
-
-  void _onUnitsChanged() {
-    if (!mounted) return;
-    final units = UnitsService.instance;
-    setState(() {
-      _goalCtrl.text =
-          units.distance(_profile.dailyGoalKm).toStringAsFixed(1);
-      _weeklyGoalCtrl.text =
-          units.distance(_profile.weeklyGoalKm).toStringAsFixed(0);
-      _monthlyGoalCtrl.text =
-          units.distance(_profile.monthlyGoalKm).toStringAsFixed(0);
-    });
-  }
-
-  Future<void> _load() async {
-    final p = await _storage.loadProfile();
-    if (!mounted) return;
-    final units = UnitsService.instance;
-    setState(() {
-      _profile = p ?? UserProfile.empty;
-      _usernameCtrl.text = _profile.username;
-      _emailCtrl.text = _profile.email;
-      _weightCtrl.text = _profile.weightKg.toString();
-      _ageCtrl.text = _profile.age.toString();
-      _goalCtrl.text =
-          units.distance(_profile.dailyGoalKm).toStringAsFixed(1);
-      _weeklyGoalCtrl.text =
-          units.distance(_profile.weeklyGoalKm).toStringAsFixed(0);
-      _monthlyGoalCtrl.text =
-          units.distance(_profile.monthlyGoalKm).toStringAsFixed(0);
-      _loading = false;
-    });
+    FirestoreService.runsChanged.addListener(_load);
+    UnitsService.instance.addListener(_onUnitsChanged);
   }
 
   @override
   void dispose() {
+    FirestoreService.runsChanged.removeListener(_load);
     UnitsService.instance.removeListener(_onUnitsChanged);
-    _usernameCtrl.dispose();
-    _emailCtrl.dispose();
-    _weightCtrl.dispose();
-    _ageCtrl.dispose();
-    _goalCtrl.dispose();
-    _weeklyGoalCtrl.dispose();
-    _monthlyGoalCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final units = UnitsService.instance;
-    final updated = _profile.copyWith(
-      username: _usernameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      weightKg: double.parse(_weightCtrl.text.replaceAll(',', '.')),
-      age: int.parse(_ageCtrl.text),
-      dailyGoalKm: units.distanceToKm(
-          double.parse(_goalCtrl.text.replaceAll(',', '.'))),
-      weeklyGoalKm: units.distanceToKm(
-          double.parse(_weeklyGoalCtrl.text.replaceAll(',', '.'))),
-      monthlyGoalKm: units.distanceToKm(
-          double.parse(_monthlyGoalCtrl.text.replaceAll(',', '.'))),
-    );
-    try {
-      await _storage.saveProfile(updated);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors de la sauvegarde')),
-      );
-      return;
-    }
+  void _onUnitsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _load() async {
+    final p = await _firestore.loadProfile();
+    final stats = await _firestore.loadLifetimeStats();
     if (!mounted) return;
-    setState(() => _profile = updated);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil mis à jour')),
-    );
+    setState(() {
+      _profile = p ?? UserProfile.empty;
+      _lifetime = stats;
+      _loading = false;
+    });
   }
 
   Future<void> _changePhoto() async {
@@ -155,7 +88,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             if (_profile.photoPath != null)
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                leading:
+                    const Icon(Icons.delete_outline, color: Colors.redAccent),
                 title: const Text('Supprimer la photo'),
                 onTap: () => Navigator.pop(ctx, null),
               ),
@@ -170,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _photo.deleteIfExists(_profile.photoPath);
       final updated = _profile.copyWith(clearPhoto: true);
       try {
-        await _storage.saveProfile(updated);
+        await _firestore.saveProfile(updated);
       } catch (_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -189,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (path == null || !mounted) return;
       await _photo.deleteIfExists(_profile.photoPath);
       final updated = _profile.copyWith(photoPath: path);
-      await _storage.saveProfile(updated);
+      await _firestore.saveProfile(updated);
       if (!mounted) return;
       setState(() => _profile = updated);
     } catch (_) {
@@ -200,25 +134,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  String? _validateEmail(String? v) {
-    if (v == null || !_emailRegExp.hasMatch(v.trim())) return 'Email invalide';
-    return null;
+  Future<void> _openEdit() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+    );
+    _load();
   }
 
-  String? _validateDouble(String? v, {required double min, required double max}) {
-    if (v == null || v.trim().isEmpty) return 'Requis';
-    final parsed = double.tryParse(v.trim().replaceAll(',', '.'));
-    if (parsed == null) return 'Nombre invalide';
-    if (parsed < min || parsed > max) return 'Entre $min et $max';
-    return null;
+  String _fmtDuration(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    if (h == 0) return '${m}min';
+    return '${h}h ${m.toString().padLeft(2, '0')}min';
   }
 
-  String? _validateInt(String? v, {required int min, required int max}) {
-    if (v == null || v.trim().isEmpty) return 'Requis';
-    final parsed = int.tryParse(v.trim());
-    if (parsed == null) return 'Nombre invalide';
-    if (parsed < min || parsed > max) return 'Entre $min et $max';
-    return null;
+  String _memberSinceLabel() {
+    final user = AuthService.currentUser;
+    final created = user?.metadata.creationTime;
+    if (created == null) return '—';
+    return DateFormat('MMMM yyyy', 'fr_FR').format(created);
   }
 
   @override
@@ -226,10 +160,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final units = UnitsService.instance;
     return Scaffold(
       appBar: AppBar(
         title: const Text('PROFIL'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Modifier le profil',
+            onPressed: _openEdit,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Paramètres',
@@ -239,93 +179,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-          children: [
-            Center(child: _Avatar(profile: _profile, onTap: _changePhoto)),
-            const SizedBox(height: 24),
-            const _SectionLabel('IDENTIFIANTS'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _usernameCtrl,
-              decoration: const InputDecoration(labelText: 'Nom d\'utilisateur'),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Requis' : null,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        children: [
+          Center(child: _Avatar(profile: _profile, onTap: _changePhoto)),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              _profile.username.isNotEmpty ? _profile.username : 'Anonyme',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-              validator: _validateEmail,
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              _profile.email,
+              style: const TextStyle(
+                color: AppColors.subtleGrey,
+                fontSize: 13,
+              ),
             ),
-            const SizedBox(height: 24),
-            const _SectionLabel('INFORMATIONS PHYSIQUES'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _weightCtrl,
-                    decoration: const InputDecoration(labelText: 'Poids (kg)'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => _validateDouble(v, min: 20, max: 300),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              'Membre depuis ${_memberSinceLabel()}',
+              style: const TextStyle(
+                color: AppColors.subtleGrey,
+                fontSize: 12,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const _SectionLabel('TES STATISTIQUES'),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _StatRow(
+                    icon: Icons.directions_run,
+                    label: 'Courses',
+                    value: _lifetime.totalRuns.toDouble(),
+                    format: (v) => v.toInt().toString(),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _ageCtrl,
-                    decoration: const InputDecoration(labelText: 'Âge'),
-                    keyboardType: TextInputType.number,
-                    validator: (v) => _validateInt(v, min: 5, max: 120),
+                  const Divider(color: Colors.white12, height: 24),
+                  _StatRow(
+                    icon: Icons.straighten,
+                    label: 'Distance totale',
+                    value: units.distance(_lifetime.totalDistanceKm),
+                    format: (v) =>
+                        '${v.toStringAsFixed(1)} ${units.distanceUnit()}',
                   ),
-                ),
-              ],
+                  const Divider(color: Colors.white12, height: 24),
+                  _StatRow(
+                    icon: Icons.timer_outlined,
+                    label: 'Temps total',
+                    value: _lifetime.totalActiveTime.inSeconds.toDouble(),
+                    format: (_) => _fmtDuration(_lifetime.totalActiveTime),
+                  ),
+                  const Divider(color: Colors.white12, height: 24),
+                  _StatRow(
+                    icon: Icons.show_chart,
+                    label: 'Moyenne par course',
+                    value: units.distance(_lifetime.avgDistanceKm),
+                    format: (v) =>
+                        '${v.toStringAsFixed(2)} ${units.distanceUnit()}',
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            const _SectionLabel('OBJECTIFS'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _goalCtrl,
-              decoration: InputDecoration(
-                  labelText:
-                      'Objectif quotidien (${UnitsService.instance.distanceUnit()})'),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) => _validateDouble(v, min: 0.1, max: 200),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _weeklyGoalCtrl,
-              decoration: InputDecoration(
-                  labelText:
-                      'Objectif hebdomadaire (${UnitsService.instance.distanceUnit()})'),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) => _validateDouble(v, min: 1, max: 1500),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _monthlyGoalCtrl,
-              decoration: InputDecoration(
-                  labelText:
-                      'Objectif mensuel (${UnitsService.instance.distanceUnit()})'),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) => _validateDouble(v, min: 1, max: 5000),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _save,
-              child: const Text('ENREGISTRER'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final double value;
+  final String Function(double) format;
+  const _StatRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.format,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.stravaOrange, size: 22),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ),
+        AnimatedNumber(
+          value: value,
+          formatter: format,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -414,13 +387,16 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        color: AppColors.subtleGrey,
-        letterSpacing: 1.5,
-        fontWeight: FontWeight.w700,
-        fontSize: 12,
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.subtleGrey,
+          letterSpacing: 1.5,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/run.dart';
 
 /// Tracks an active run: duration, distance, speed, calories, per-km splits.
@@ -36,6 +37,9 @@ class RunTracker extends ChangeNotifier {
   StreamSubscription<Position>? _positionSub;
   Timer? _tickTimer;
   bool _gpsAvailable = false;
+  final List<LatLng> _trackPoints = [];
+
+  List<LatLng> get trackPoints => List.unmodifiable(_trackPoints);
 
   Duration get duration => _duration;
   double get distanceMeters => _distanceMeters;
@@ -75,6 +79,7 @@ class RunTracker extends ChangeNotifier {
     _lastSplitKm = 0;
     _slowSecondsStreak = 0;
     _splits.clear();
+    _trackPoints.clear();
 
     if (hapticFeedback) HapticFeedback.mediumImpact();
 
@@ -127,6 +132,7 @@ class RunTracker extends ChangeNotifier {
             _distanceMeters += meters;
           }
           _lastPosition = pos;
+          _trackPoints.add(LatLng(pos.latitude, pos.longitude));
           _currentSpeedKmh = (pos.speed.isFinite && pos.speed >= 0)
               ? pos.speed * 3.6
               : 0;

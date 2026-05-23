@@ -3,13 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
+import '../services/firestore_service.dart';
 import '../services/profile_photo_service.dart';
 import '../services/storage_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import 'change_password_screen.dart';
-import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _storage = StorageService();
   final _biometrics = BiometricService();
   final _photo = ProfilePhotoService();
+  final _firestore = FirestoreService();
 
   bool _loading = true;
   bool _biometricEnabled = false;
@@ -78,8 +80,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportData() async {
     try {
-      final profile = await _storage.loadProfile();
-      final runs = await _storage.loadRuns();
+      final profile = await _firestore.loadProfile();
+      final runs = await _firestore.loadRuns();
       final payload = {
         'exportedAt': DateTime.now().toIso8601String(),
         'profile': profile?.toJson(),
@@ -131,9 +133,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm != true) return;
 
     try {
-      final profile = await _storage.loadProfile();
+      final profile = await _firestore.loadProfile();
       await _photo.deleteIfExists(profile?.photoPath);
-      await _storage.clearAll();
+      await _firestore.deleteAccountData();
+      await _storage.clearDevicePrefs();
+      await AuthService.signOut();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -142,15 +146,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
+    // _AuthGate listens to authStateChanges and will route to LoginScreen.
+    Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   Future<void> _logout() async {
     try {
-      await _storage.setLoggedIn(false);
+      await AuthService.signOut();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -159,10 +161,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
+    Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   void _showPrivacy() {
@@ -173,10 +172,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Confidentialité'),
         content: const SingleChildScrollView(
           child: Text(
-            'Train Your Heart fonctionne entièrement sur votre appareil. '
-            'Aucune donnée n\'est envoyée vers un serveur. '
-            'Votre profil, vos courses et votre photo restent dans le stockage local de l\'application. '
-            'Vous pouvez à tout moment exporter vos données ou les effacer depuis cet écran.',
+            'Votre profil et vos courses sont stockés dans Firebase, '
+            'protégés par votre compte (email/mot de passe ou Google). '
+            'Votre photo de profil reste sur cet appareil. '
+            'Vous pouvez exporter ou supprimer vos données depuis cet écran.',
             style: TextStyle(color: AppColors.subtleGrey, height: 1.4),
           ),
         ),

@@ -5,6 +5,7 @@ import '../models/run.dart';
 import '../services/run_share_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
+import '../widgets/run_route_map.dart';
 
 class RunDetailScreen extends StatelessWidget {
   final Run run;
@@ -77,6 +78,18 @@ class RunDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          if (run.points.length >= 2) ...[
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: SizedBox(
+                height: 220,
+                child: RepaintBoundary(
+                  child: RunRouteMap(points: run.points),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),

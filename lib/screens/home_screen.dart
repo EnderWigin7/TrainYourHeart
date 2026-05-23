@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
-import '../services/storage_service.dart';
+import '../services/firestore_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/animated_number.dart';
@@ -14,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _storage = StorageService();
+  final _firestore = FirestoreService();
   UserProfile _profile = UserProfile.empty;
   double _todayKm = 0;
   Stats _stats = Stats.empty;
@@ -24,13 +24,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _refresh();
-    StorageService.runsChanged.addListener(_refresh);
+    FirestoreService.runsChanged.addListener(_refresh);
     UnitsService.instance.addListener(_onUnitsChanged);
   }
 
   @override
   void dispose() {
-    StorageService.runsChanged.removeListener(_refresh);
+    FirestoreService.runsChanged.removeListener(_refresh);
     UnitsService.instance.removeListener(_onUnitsChanged);
     super.dispose();
   }
@@ -40,10 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
-    final p = await _storage.loadProfile();
+    final p = await _firestore.loadProfile();
     final profile = p ?? UserProfile.empty;
-    final km = await _storage.todaysDistanceKm();
-    final stats = await _storage.loadStats(profile.dailyGoalKm);
+    final km = await _firestore.todaysDistanceKm();
+    final stats = await _firestore.loadStats(profile.dailyGoalKm);
     if (!mounted) return;
     setState(() {
       _profile = profile;

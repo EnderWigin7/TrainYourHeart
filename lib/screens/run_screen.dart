@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/run.dart';
+import '../services/firestore_service.dart';
 import '../services/run_tracker.dart';
 import '../services/storage_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
+import '../widgets/run_route_map.dart';
 
 class RunScreen extends StatefulWidget {
   final double weightKg;
@@ -16,6 +18,7 @@ class RunScreen extends StatefulWidget {
 class _RunScreenState extends State<RunScreen> {
   RunTracker? _tracker;
   final _storage = StorageService();
+  final _firestore = FirestoreService();
 
   @override
   void initState() {
@@ -99,9 +102,10 @@ class _RunScreenState extends State<RunScreen> {
       splits: tracker.splits,
       note: recap?.note,
       difficulty: recap?.difficulty,
+      points: tracker.trackPoints,
     );
     try {
-      await _storage.addRun(run);
+      await _firestore.addRun(run);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -129,28 +133,51 @@ class _RunScreenState extends State<RunScreen> {
     }
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
+        child: Column(
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.38,
+              child: Stack(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _stopAndSave,
+                  Positioned.fill(
+                    child: RunRouteMap(
+                      points: tracker.trackPoints,
+                      follow: true,
+                    ),
                   ),
-                  const Spacer(),
+                  Positioned(
+                    top: 8,
+                    left: 4,
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withValues(alpha: 0.4),
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _stopAndSave,
+                    ),
+                  ),
                   if (tracker.isPaused)
-                    Chip(
-                      backgroundColor: Colors.white12,
-                      label: Text(tracker.isAutoPaused
-                          ? 'PAUSE AUTO'
-                          : 'EN PAUSE'),
+                    Positioned(
+                      top: 14,
+                      right: 12,
+                      child: Chip(
+                        backgroundColor:
+                            Colors.black.withValues(alpha: 0.5),
+                        label: Text(tracker.isAutoPaused
+                            ? 'PAUSE AUTO'
+                            : 'EN PAUSE'),
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: 40),
-              const Text(
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  children: [
+                    const Text(
                 'DURÉE',
                 style: TextStyle(
                   color: AppColors.subtleGrey,
@@ -217,8 +244,11 @@ class _RunScreenState extends State<RunScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-            ],
-          ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

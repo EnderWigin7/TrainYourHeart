@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/run.dart';
 import '../models/user_profile.dart';
+import '../services/firestore_service.dart';
 import '../services/run_share_service.dart';
-import '../services/storage_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/empty_state.dart';
@@ -19,7 +19,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final _storage = StorageService();
+  final _firestore = FirestoreService();
   final _shareService = RunShareService();
   List<Run> _runs = [];
   UserProfile _profile = UserProfile.empty;
@@ -32,13 +32,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _load();
-    StorageService.runsChanged.addListener(_load);
+    FirestoreService.runsChanged.addListener(_load);
     UnitsService.instance.addListener(_onUnitsChanged);
   }
 
   @override
   void dispose() {
-    StorageService.runsChanged.removeListener(_load);
+    FirestoreService.runsChanged.removeListener(_load);
     UnitsService.instance.removeListener(_onUnitsChanged);
     super.dispose();
   }
@@ -48,9 +48,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _load() async {
-    final r = await _storage.loadRuns();
-    final last14 = await _storage.last14DaysKm();
-    final profile = await _storage.loadProfile();
+    final r = await _firestore.loadRuns();
+    final last14 = await _firestore.last14DaysKm();
+    final profile = await _firestore.loadProfile();
     final byDay = <DateTime, List<Run>>{};
     for (final run in r) {
       final d = DateTime(

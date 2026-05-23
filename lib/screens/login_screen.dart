@@ -1,11 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
+import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
-import '../services/password_hasher.dart';
+import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/glass_card.dart';
-import 'home_shell.dart';
 
 final _emailRegExp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 const _kAnim = Duration(milliseconds: 280);
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _storage = StorageService();
   final _biometrics = BiometricService();
+  final _firestore = FirestoreService();
 
   final _usernameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -34,25 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _obscurePassword = true;
   bool _obscurePasswordConfirm = true;
-  UserProfile? _existing;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadExisting();
-  }
-
-  Future<void> _loadExisting() async {
-    final p = await _storage.loadProfile();
-    if (p != null && p.passwordHash.isNotEmpty && mounted) {
-      setState(() {
-        _existing = p;
-        _isSignUp = false;
-        _usernameCtrl.text = p.username;
-        _emailCtrl.text = p.email;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -84,44 +67,37 @@ class _LoginScreenState extends State<LoginScreen> {
     bool didSignUp = false;
     try {
       if (_isSignUp) {
-        final hashed = PasswordHasher.hash(_passwordCtrl.text);
+        await AuthService.signUpWithEmail(
+          email: _emailCtrl.text.trim(),
+          password: _passwordCtrl.text,
+        );
         final profile = UserProfile(
           username: _usernameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          passwordHash: hashed.hash,
-          passwordSalt: hashed.salt,
           weightKg: double.parse(_weightCtrl.text.replaceAll(',', '.')),
           age: int.parse(_ageCtrl.text),
           dailyGoalKm: double.parse(_goalCtrl.text.replaceAll(',', '.')),
         );
-        await _storage.saveProfile(profile);
-        await _storage.setLoggedIn(true);
+        await _firestore.saveProfile(profile);
         didSignUp = true;
       } else {
-        final existing = _existing;
-        final emailMatches =
-            existing != null && existing.email == _emailCtrl.text.trim();
-        final passwordMatches = existing != null &&
-            PasswordHasher.verify(
-              _passwordCtrl.text,
-              existing.passwordHash,
-              existing.passwordSalt,
-            );
-        if (!emailMatches || !passwordMatches) {
-          if (!mounted) return;
-          setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Identifiants invalides')),
-          );
-          return;
-        }
-        await _storage.setLoggedIn(true);
+        await AuthService.signInWithEmail(
+          email: _emailCtrl.text.trim(),
+          password: _passwordCtrl.text,
+        );
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur d\'enregistrement, réessayez')),
+        const SnackBar(content: Text('Erreur, réessayez')),
       );
       return;
     }
@@ -130,10 +106,54 @@ class _LoginScreenState extends State<LoginScreen> {
       await _maybeOfferBiometrics();
     }
 
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeShell()),
-    );
+    // Auth state stream in _AuthGate will navigate to HomeShell automatically.
+  }
+
+  Future<void> _googleSignIn() async {
+    setState(() => _loading = true);
+    try {
+      final cred = await AuthService.signInWithGoogle();
+      if (cred == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final user = cred.user!;
+      await _firestore.ensureProfile(
+        fallbackUsername: user.displayName ?? 'Coureur',
+        email: user.email ?? '',
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connexion Google échouée')),
+      );
+    }
+  }
+
+  String _friendlyError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+        return 'Identifiants invalides';
+      case 'email-already-in-use':
+        return 'Email déjà utilisé';
+      case 'weak-password':
+        return 'Mot de passe trop faible';
+      case 'invalid-email':
+        return 'Email invalide';
+      case 'network-request-failed':
+        return 'Pas de connexion internet';
+      default:
+        return e.message ?? 'Erreur d\'authentification';
+    }
   }
 
   Future<void> _maybeOfferBiometrics() async {
@@ -142,7 +162,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
         title: const Text('Connexion biométrique'),
         content: const Text(
           'Voulez-vous activer la connexion par empreinte ou reconnaissance faciale ?',
@@ -181,12 +200,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _validatePassword(String? v) =>
-      (v == null || v.length < 4) ? 'Min 4 caractères' : null;
+      (v == null || v.length < 6) ? 'Min 6 caractères' : null;
 
   String? _validatePasswordConfirm(String? v) =>
       (v != _passwordCtrl.text) ? 'Les mots de passe ne correspondent pas' : null;
 
-  String? _validateDouble(String? v, {required double min, required double max}) {
+  String? _validateDouble(String? v,
+      {required double min, required double max}) {
     if (v == null || v.trim().isEmpty) return 'Requis';
     final parsed = double.tryParse(v.trim().replaceAll(',', '.'));
     if (parsed == null) return 'Nombre invalide';
@@ -366,8 +386,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                         const TextInputType.numberWithOptions(
                                             decimal: true),
                                     validator: _isSignUp
-                                        ? (v) =>
-                                            _validateDouble(v, min: 20, max: 300)
+                                        ? (v) => _validateDouble(v,
+                                            min: 20, max: 300)
                                         : null,
                                   ),
                                 ),
@@ -421,6 +441,51 @@ class _LoginScreenState extends State<LoginScreen> {
                                   key: ValueKey(_isSignUp),
                                 ),
                               ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                                color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'OU',
+                              style: TextStyle(
+                                color: AppColors.subtleGrey,
+                                fontSize: 12,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                                color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _googleSignIn,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.18)),
+                          shape: const StadiumBorder(),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: const Icon(Icons.account_circle,
+                            color: AppColors.stravaOrange),
+                        label: const Text(
+                          'CONTINUER AVEC GOOGLE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ),
                     ],
                   ),

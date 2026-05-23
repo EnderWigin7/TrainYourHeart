@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "949300799831",
+    "project_id": "train-your-heart",
+    "storage_bucket": "train-your-heart.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:949300799831:android:d27b55526723e165c4f612",
+        "android_client_info": {
+          "package_name": "com.example.projectsynthese"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "949300799831-1klolobm9j21i7gankajdb5mmqthk267.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkckqbqFqWRiUi-2TUI95bCy4mMCkiFMc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "949300799831-1klolobm9j21i7gankajdb5mmqthk267.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "949300799831-t6jucmoi7f0bre65s2694egf24h754k5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.projectsynthese"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

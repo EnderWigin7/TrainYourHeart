@@ -1,6 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../services/password_hasher.dart';
-import '../services/storage_service.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -12,7 +12,6 @@ class ChangePasswordScreen extends StatefulWidget {
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _storage = StorageService();
 
   final _currentCtrl = TextEditingController();
   final _newCtrl = TextEditingController();
@@ -35,36 +34,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    final profile = await _storage.loadProfile();
-    if (profile == null) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil introuvable')),
-      );
-      return;
-    }
-
-    final ok = PasswordHasher.verify(
-      _currentCtrl.text,
-      profile.passwordHash,
-      profile.passwordSalt,
-    );
-    if (!ok) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mot de passe actuel incorrect')),
-      );
-      return;
-    }
-
-    final hashed = PasswordHasher.hash(_newCtrl.text);
     try {
-      await _storage.saveProfile(profile.copyWith(
-        passwordHash: hashed.hash,
-        passwordSalt: hashed.salt,
-      ));
+      await AuthService.changePassword(
+        currentPassword: _currentCtrl.text,
+        newPassword: _newCtrl.text,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -79,6 +60,20 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       const SnackBar(content: Text('Mot de passe mis à jour')),
     );
     Navigator.of(context).pop();
+  }
+
+  String _friendlyError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Mot de passe actuel incorrect';
+      case 'weak-password':
+        return 'Nouveau mot de passe trop faible';
+      case 'requires-recent-login':
+        return 'Reconnectez-vous puis réessayez';
+      default:
+        return e.message ?? 'Erreur d\'authentification';
+    }
   }
 
   InputDecoration _decoration(
@@ -97,6 +92,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (AuthService.isGoogleAccount) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('CHANGER LE MOT DE PASSE')),
+        body: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'Votre compte est géré par Google.\n'
+              'Modifiez votre mot de passe depuis votre compte Google.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.subtleGrey),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('CHANGER LE MOT DE PASSE')),
       body: Form(
@@ -126,7 +137,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               ),
               obscureText: _obscureNew,
               validator: (v) =>
-                  (v == null || v.length < 4) ? 'Min 4 caractères' : null,
+                  (v == null || v.length < 6) ? 'Min 6 caractères' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
