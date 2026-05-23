@@ -236,6 +236,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          const _SectionLabel('AFFICHAGE'),
+          const SizedBox(height: 8),
+          Card(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: StorageService.reducedEffects,
+              builder: (_, reduced, _) => SwitchListTile(
+                value: reduced,
+                onChanged: (v) => _storage.setReducedEffects(v),
+                activeThumbColor: AppColors.stravaOrange,
+                title: const Text('Réduire les effets'),
+                subtitle: const Text(
+                  'Désactive les flous et les halos pour de meilleures performances',
+                  style:
+                      TextStyle(color: AppColors.subtleGrey, fontSize: 12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           const _SectionLabel('COURSE'),
           const SizedBox(height: 8),
           Card(

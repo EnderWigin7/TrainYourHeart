@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 
 class GlassCard extends StatelessWidget {
   final Widget child;
@@ -22,24 +23,36 @@ class GlassCard extends StatelessWidget {
     final shape = ContinuousRectangleBorder(
       borderRadius: BorderRadius.circular(borderRadius),
     );
-    return ClipPath(
-      clipper: ShapeBorderClipper(shape: shape),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: DecoratedBox(
+    final borderShape = ContinuousRectangleBorder(
+      borderRadius: BorderRadius.circular(borderRadius),
+      side: BorderSide(
+        color: Colors.white.withValues(alpha: 0.08),
+        width: 1,
+      ),
+    );
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: StorageService.reducedEffects,
+      builder: (_, reduced, _) {
+        final body = DecoratedBox(
           decoration: ShapeDecoration(
-            color: color ?? Colors.white.withValues(alpha: 0.06),
-            shape: ContinuousRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-              side: BorderSide(
-                color: Colors.white.withValues(alpha: 0.08),
-                width: 1,
-              ),
-            ),
+            color: reduced
+                ? Colors.white.withValues(alpha: 0.04)
+                : (color ?? Colors.white.withValues(alpha: 0.06)),
+            shape: borderShape,
           ),
           child: Padding(padding: padding, child: child),
-        ),
-      ),
+        );
+        return ClipPath(
+          clipper: ShapeBorderClipper(shape: shape),
+          child: reduced
+              ? body
+              : BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                  child: body,
+                ),
+        );
+      },
     );
   }
 }

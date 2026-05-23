@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 import '../theme.dart';
 
 class AppGradientBackground extends StatelessWidget {
@@ -9,7 +10,12 @@ class AppGradientBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const RepaintBoundary(child: _Backdrop()),
+        RepaintBoundary(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: StorageService.reducedEffects,
+            builder: (_, reduced, _) => _Backdrop(reduced: reduced),
+          ),
+        ),
         child,
       ],
     );
@@ -17,7 +23,8 @@ class AppGradientBackground extends StatelessWidget {
 }
 
 class _Backdrop extends StatelessWidget {
-  const _Backdrop();
+  final bool reduced;
+  const _Backdrop({required this.reduced});
 
   @override
   Widget build(BuildContext context) {
@@ -34,26 +41,29 @@ class _Backdrop extends StatelessWidget {
           stops: [0.0, 0.5, 1.0],
         ),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -120,
-            right: -80,
-            child: _GlowBlob(
-              color: AppColors.stravaOrange.withValues(alpha: 0.18),
-              size: 320,
+      child: reduced
+          ? const SizedBox.expand()
+          : Stack(
+              children: [
+                Positioned(
+                  top: -120,
+                  right: -80,
+                  child: _GlowBlob(
+                    color:
+                        AppColors.stravaOrange.withValues(alpha: 0.18),
+                    size: 320,
+                  ),
+                ),
+                Positioned(
+                  bottom: -140,
+                  left: -100,
+                  child: _GlowBlob(
+                    color: const Color(0xFF4A1A4F).withValues(alpha: 0.22),
+                    size: 360,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Positioned(
-            bottom: -140,
-            left: -100,
-            child: _GlowBlob(
-              color: const Color(0xFF4A1A4F).withValues(alpha: 0.22),
-              size: 360,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

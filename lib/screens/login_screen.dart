@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
@@ -89,16 +90,12 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(e))),
-      );
+      _showAuthError(e);
       return;
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur, réessayez')),
-      );
+      _showError('Erreur, réessayez');
       return;
     }
 
@@ -125,35 +122,79 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(e))),
-      );
-    } catch (_) {
+      _showAuthError(e);
+    } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connexion Google échouée')),
-      );
+      // Show the real exception so SHA-1 / Play Services issues are visible.
+      _showError('Google: $e');
     }
   }
 
-  String _friendlyError(FirebaseAuthException e) {
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+  }
+
+  void _showAuthError(FirebaseAuthException e) {
+    String message;
+    String? actionLabel;
+    VoidCallback? action;
     switch (e.code) {
       case 'invalid-credential':
-      case 'wrong-password':
       case 'user-not-found':
-        return 'Identifiants invalides';
+        message =
+            'Email ou mot de passe incorrect. Vérifiez, ou créez un compte.';
+        actionLabel = 'S\'INSCRIRE';
+        action = () => _setMode(true);
+        break;
+      case 'wrong-password':
+        message = 'Mot de passe incorrect.';
+        break;
       case 'email-already-in-use':
-        return 'Email déjà utilisé';
+        message = 'Cet email a déjà un compte. Connectez-vous.';
+        actionLabel = 'CONNEXION';
+        action = () => _setMode(false);
+        break;
       case 'weak-password':
-        return 'Mot de passe trop faible';
+        message = 'Mot de passe trop faible (min 6 caractères).';
+        break;
       case 'invalid-email':
-        return 'Email invalide';
+        message = 'Email invalide.';
+        break;
       case 'network-request-failed':
-        return 'Pas de connexion internet';
+        message = 'Pas de connexion internet.';
+        break;
+      case 'too-many-requests':
+        message = 'Trop de tentatives. Réessayez plus tard.';
+        break;
+      case 'operation-not-allowed':
+        message = 'Méthode de connexion désactivée dans Firebase.';
+        break;
       default:
-        return e.message ?? 'Erreur d\'authentification';
+        message = e.message ?? 'Erreur d\'authentification (${e.code})';
     }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 6),
+          action: actionLabel != null && action != null
+              ? SnackBarAction(
+                  label: actionLabel,
+                  textColor: AppColors.stravaOrange,
+                  onPressed: action,
+                )
+              : null,
+        ),
+      );
   }
 
   Future<void> _maybeOfferBiometrics() async {
@@ -477,8 +518,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding:
                               const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        icon: const Icon(Icons.account_circle,
-                            color: AppColors.stravaOrange),
+                        icon: SvgPicture.asset(
+                          'assets/google_g.svg',
+                          width: 20,
+                          height: 20,
+                        ),
                         label: const Text(
                           'CONTINUER AVEC GOOGLE',
                           style: TextStyle(

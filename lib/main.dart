@@ -20,6 +20,7 @@ Future<void> main() async {
   );
   await initializeDateFormatting('fr_FR', null);
   await UnitsService.instance.load();
+  await StorageService().loadReducedEffects();
   runApp(const TrainYourHeartApp());
 }
 
@@ -53,6 +54,7 @@ class _AuthGateState extends State<_AuthGate> {
   bool _onboardingDone = false;
   bool _ready = false;
   bool _biometricApproved = false;
+  bool _biometricInFlight = false;
 
   @override
   void initState() {
@@ -70,26 +72,30 @@ class _AuthGateState extends State<_AuthGate> {
   }
 
   Future<void> _maybePromptBiometric(User user) async {
-    if (_biometricApproved) return;
-    final enabled = await _storage.isBiometricEnabled();
-    if (!enabled) {
-      _biometricApproved = true;
-      return;
-    }
-    final canUse = await _biometrics.canUseBiometrics();
-    if (!canUse) {
-      _biometricApproved = true;
-      return;
-    }
-    final ok = await _biometrics.authenticate(
-      reason: 'Connectez-vous à Train Your Heart',
-    );
-    if (ok) {
-      _biometricApproved = true;
-      if (mounted) setState(() {});
-    } else {
-      // Failed biometric — sign out so the user can try again or use password.
-      await AuthService.signOut();
+    if (_biometricApproved || _biometricInFlight) return;
+    _biometricInFlight = true;
+    try {
+      final enabled = await _storage.isBiometricEnabled();
+      if (!enabled) {
+        if (mounted) setState(() => _biometricApproved = true);
+        return;
+      }
+      final canUse = await _biometrics.canUseBiometrics();
+      if (!canUse) {
+        if (mounted) setState(() => _biometricApproved = true);
+        return;
+      }
+      final ok = await _biometrics.authenticate(
+        reason: 'Connectez-vous à Train Your Heart',
+      );
+      if (ok) {
+        if (mounted) setState(() => _biometricApproved = true);
+      } else {
+        // Failed biometric — sign out so the user can try again or use password.
+        await AuthService.signOut();
+      }
+    } finally {
+      _biometricInFlight = false;
     }
   }
 
@@ -117,6 +123,7 @@ class _AuthGateState extends State<_AuthGate> {
         final user = snap.data;
         if (user == null) {
           _biometricApproved = false;
+          _biometricInFlight = false;
           return const LoginScreen();
         }
         // Trigger biometric prompt once per session.
