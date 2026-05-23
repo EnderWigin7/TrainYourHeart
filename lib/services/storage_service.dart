@@ -56,6 +56,18 @@ class StorageService {
     await prefs.setBool(_kHapticFeedback, value);
   }
 
+  static const _kLastConfettiDay = 'lastConfettiDay';
+
+  Future<String?> lastConfettiDayIso() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kLastConfettiDay);
+  }
+
+  Future<void> setLastConfettiDay(String iso) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLastConfettiDay, iso);
+  }
+
   Future<bool> isOnboardingDone() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kOnboardingDone) ?? false;

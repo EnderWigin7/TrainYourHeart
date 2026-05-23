@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/run.dart';
 import '../services/firestore_service.dart';
 import '../services/run_tracker.dart';
@@ -9,7 +11,12 @@ import '../widgets/run_route_map.dart';
 
 class RunScreen extends StatefulWidget {
   final double weightKg;
-  const RunScreen({super.key, required this.weightKg});
+  final List<LatLng>? plannedRoute;
+  const RunScreen({
+    super.key,
+    required this.weightKg,
+    this.plannedRoute,
+  });
 
   @override
   State<RunScreen> createState() => _RunScreenState();
@@ -23,7 +30,16 @@ class _RunScreenState extends State<RunScreen> {
   @override
   void initState() {
     super.initState();
+    _enableWakelock();
     _initTracker();
+  }
+
+  Future<void> _enableWakelock() async {
+    try {
+      await WakelockPlus.enable();
+    } catch (_) {
+      // Wakelock unsupported on this device; ignore.
+    }
   }
 
   Future<void> _initTracker() async {
@@ -46,6 +62,7 @@ class _RunScreenState extends State<RunScreen> {
   void dispose() {
     _tracker?.removeListener(_onUpdate);
     _tracker?.dispose();
+    WakelockPlus.disable().catchError((_) => false);
     super.dispose();
   }
 
@@ -103,6 +120,7 @@ class _RunScreenState extends State<RunScreen> {
       note: recap?.note,
       difficulty: recap?.difficulty,
       points: tracker.trackPoints,
+      title: recap?.title,
     );
     try {
       await _firestore.addRun(run);
@@ -142,6 +160,7 @@ class _RunScreenState extends State<RunScreen> {
                   Positioned.fill(
                     child: RunRouteMap(
                       points: tracker.trackPoints,
+                      plannedRoute: widget.plannedRoute,
                       follow: true,
                     ),
                   ),
@@ -173,79 +192,92 @@ class _RunScreenState extends State<RunScreen> {
               ),
             ),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: Column(
-                  children: [
-                    const Text(
-                'DURÉE',
-                style: TextStyle(
-                  color: AppColors.subtleGrey,
-                  letterSpacing: 2,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _fmtDuration(tracker.duration),
-                style: const TextStyle(
-                  fontSize: 64,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-              const SizedBox(height: 40),
-              _BigMetric(
-                label: 'DISTANCE',
-                value: UnitsService.instance
-                    .distance(tracker.distanceKm)
-                    .toStringAsFixed(2),
-                unit: UnitsService.instance.distanceUnit(),
-              ),
-              const SizedBox(height: 24),
-              Row(
+              child: Column(
                 children: [
                   Expanded(
-                    child: _MetricTile(
-                      label: 'VITESSE',
-                      value: UnitsService.instance
-                          .speed(tracker.currentSpeedKmh)
-                          .toStringAsFixed(1),
-                      unit: UnitsService.instance.speedUnit(),
+                    child: SingleChildScrollView(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'DURÉE',
+                            style: TextStyle(
+                              color: AppColors.subtleGrey,
+                              letterSpacing: 2,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _fmtDuration(tracker.duration),
+                            style: const TextStyle(
+                              fontSize: 56,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _BigMetric(
+                            label: 'DISTANCE',
+                            value: UnitsService.instance
+                                .distance(tracker.distanceKm)
+                                .toStringAsFixed(2),
+                            unit: UnitsService.instance.distanceUnit(),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _MetricTile(
+                                  label: 'VITESSE',
+                                  value: UnitsService.instance
+                                      .speed(tracker.currentSpeedKmh)
+                                      .toStringAsFixed(1),
+                                  unit: UnitsService.instance.speedUnit(),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _MetricTile(
+                                  label: 'CALORIES',
+                                  value: tracker.caloriesBurned
+                                      .toStringAsFixed(0),
+                                  unit: 'kcal',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _MetricTile(
-                      label: 'CALORIES',
-                      value: tracker.caloriesBurned.toStringAsFixed(0),
-                      unit: 'kcal',
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _CircleButton(
+                          icon: tracker.isPaused
+                              ? Icons.play_arrow
+                              : Icons.pause,
+                          color: Colors.white24,
+                          onTap: () => tracker.isPaused
+                              ? tracker.resume()
+                              : tracker.pause(),
+                        ),
+                        _CircleButton(
+                          icon: Icons.stop,
+                          color: AppColors.stravaOrange,
+                          size: 80,
+                          onTap: _stopAndSave,
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _CircleButton(
-                    icon: tracker.isPaused ? Icons.play_arrow : Icons.pause,
-                    color: Colors.white24,
-                    onTap: () =>
-                        tracker.isPaused ? tracker.resume() : tracker.pause(),
-                  ),
-                  _CircleButton(
-                    icon: Icons.stop,
-                    color: AppColors.stravaOrange,
-                    size: 84,
-                    onTap: _stopAndSave,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-                  ],
-                ),
               ),
             ),
           ],
@@ -286,7 +318,7 @@ class _BigMetric extends StatelessWidget {
             Text(
               value,
               style: const TextStyle(
-                fontSize: 72,
+                fontSize: 64,
                 fontWeight: FontWeight.w900,
                 color: AppColors.stravaOrange,
               ),
@@ -296,7 +328,7 @@ class _BigMetric extends StatelessWidget {
               unit,
               style: const TextStyle(
                 color: AppColors.subtleGrey,
-                fontSize: 20,
+                fontSize: 18,
               ),
             ),
           ],
@@ -320,7 +352,7 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -340,7 +372,7 @@ class _MetricTile extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
                   ),
@@ -371,7 +403,7 @@ class _CircleButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 64,
+    this.size = 60,
   });
 
   @override
@@ -395,7 +427,8 @@ class _CircleButton extends StatelessWidget {
 class _RunRecap {
   final String? note;
   final int? difficulty;
-  const _RunRecap({this.note, this.difficulty});
+  final String? title;
+  const _RunRecap({this.note, this.difficulty, this.title});
 }
 
 class _RunRecapSheet extends StatefulWidget {
@@ -406,11 +439,13 @@ class _RunRecapSheet extends StatefulWidget {
 }
 
 class _RunRecapSheetState extends State<_RunRecapSheet> {
+  final _titleCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   int? _difficulty;
 
   @override
   void dispose() {
+    _titleCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -448,6 +483,14 @@ class _RunRecapSheetState extends State<_RunRecapSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              TextField(
+                controller: _titleCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nom de la course (optionnel)',
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
               const Text(
                 'Difficulté',
                 style: TextStyle(color: AppColors.subtleGrey, fontSize: 12),
@@ -457,9 +500,8 @@ class _RunRecapSheetState extends State<_RunRecapSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   for (int i = 1; i <= 5; i++)
-                    _DifficultyButton(
-                      level: i,
-                      selected: _difficulty == i,
+                    _StarButton(
+                      filled: _difficulty != null && i <= _difficulty!,
                       onTap: () => setState(
                           () => _difficulty = _difficulty == i ? null : i),
                     ),
@@ -474,11 +516,14 @@ class _RunRecapSheetState extends State<_RunRecapSheet> {
                 maxLines: 3,
                 textInputAction: TextInputAction.done,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
                       onPressed: () =>
                           Navigator.of(context).pop(const _RunRecap()),
                       child: const Text(
@@ -490,8 +535,14 @@ class _RunRecapSheetState extends State<_RunRecapSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
                       onPressed: () => Navigator.of(context).pop(
                         _RunRecap(
+                          title: _titleCtrl.text.trim().isEmpty
+                              ? null
+                              : _titleCtrl.text.trim(),
                           note: _noteCtrl.text.trim().isEmpty
                               ? null
                               : _noteCtrl.text.trim(),
@@ -511,41 +562,22 @@ class _RunRecapSheetState extends State<_RunRecapSheet> {
   }
 }
 
-class _DifficultyButton extends StatelessWidget {
-  final int level;
-  final bool selected;
+class _StarButton extends StatelessWidget {
+  final bool filled;
   final VoidCallback onTap;
-  const _DifficultyButton({
-    required this.level,
-    required this.selected,
-    required this.onTap,
-  });
+  const _StarButton({required this.filled, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return InkResponse(
       onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: selected ? AppColors.stravaOrange : Colors.white12,
-          border: Border.all(
-            color: selected
-                ? AppColors.stravaOrange
-                : Colors.white.withValues(alpha: 0.08),
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          '$level',
-          style: TextStyle(
-            color: selected ? Colors.white : AppColors.subtleGrey,
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-          ),
+      radius: 26,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(
+          filled ? Icons.star_rounded : Icons.star_outline_rounded,
+          size: 36,
+          color: filled ? AppColors.stravaOrange : AppColors.subtleGrey,
         ),
       ),
     );

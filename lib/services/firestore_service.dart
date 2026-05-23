@@ -31,6 +31,21 @@ class Stats {
   );
 }
 
+enum PbKind { distance, speed, calories }
+
+class PbBeat {
+  final PbKind kind;
+  final double current;
+  final double previousBest;
+  const PbBeat({
+    required this.kind,
+    required this.current,
+    required this.previousBest,
+  });
+
+  double get delta => current - previousBest;
+}
+
 class LifetimeStats {
   final int totalRuns;
   final double totalDistanceKm;
@@ -215,6 +230,51 @@ class FirestoreService {
       }
     }
     return result;
+  }
+
+  Future<List<PbBeat>> detectPbBeats(String currentRunId) async {
+    final runs = await loadRuns();
+    Run? current;
+    final others = <Run>[];
+    for (final r in runs) {
+      if (r.id == currentRunId) {
+        current = r;
+      } else {
+        others.add(r);
+      }
+    }
+    if (current == null || others.isEmpty) return const [];
+    double prevLongestKm = 0;
+    double prevFastest = 0;
+    double prevMostCal = 0;
+    for (final r in others) {
+      if (r.distanceKm > prevLongestKm) prevLongestKm = r.distanceKm;
+      if (r.averageSpeedKmh > prevFastest) prevFastest = r.averageSpeedKmh;
+      if (r.caloriesBurned > prevMostCal) prevMostCal = r.caloriesBurned;
+    }
+    final beats = <PbBeat>[];
+    if (current.distanceKm > prevLongestKm) {
+      beats.add(PbBeat(
+        kind: PbKind.distance,
+        current: current.distanceKm,
+        previousBest: prevLongestKm,
+      ));
+    }
+    if (current.averageSpeedKmh > prevFastest) {
+      beats.add(PbBeat(
+        kind: PbKind.speed,
+        current: current.averageSpeedKmh,
+        previousBest: prevFastest,
+      ));
+    }
+    if (current.caloriesBurned > prevMostCal) {
+      beats.add(PbBeat(
+        kind: PbKind.calories,
+        current: current.caloriesBurned,
+        previousBest: prevMostCal,
+      ));
+    }
+    return beats;
   }
 
   Future<LifetimeStats> loadLifetimeStats() async {

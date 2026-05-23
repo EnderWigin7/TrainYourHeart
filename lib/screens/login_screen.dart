@@ -7,19 +7,69 @@ import '../services/biometric_service.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
-import '../widgets/glass_card.dart';
 
 final _emailRegExp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-const _kAnim = Duration(milliseconds: 280);
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: const [
+              SizedBox(height: 16),
+              Center(
+                child: Icon(
+                  Icons.favorite,
+                  size: 56,
+                  color: AppColors.stravaOrange,
+                ),
+              ),
+              SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'TRAIN YOUR HEART',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+              SizedBox(height: 4),
+              Center(
+                child: Text(
+                  'Run. Track. Progress.',
+                  style: TextStyle(
+                    color: AppColors.subtleGrey,
+                    fontSize: 13,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              SizedBox(height: 24),
+              _AuthForm(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _AuthForm extends StatefulWidget {
+  const _AuthForm();
+
+  @override
+  State<_AuthForm> createState() => _AuthFormState();
+}
+
+class _AuthFormState extends State<_AuthForm> {
   final _formKey = GlobalKey<FormState>();
   final _storage = StorageService();
   final _biometrics = BiometricService();
@@ -35,8 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isSignUp = true;
   bool _loading = false;
-  bool _obscurePassword = true;
-  bool _obscurePasswordConfirm = true;
 
   @override
   void dispose() {
@@ -56,8 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _isSignUp = signUp;
       _passwordCtrl.clear();
       _passwordConfirmCtrl.clear();
-      _obscurePassword = true;
-      _obscurePasswordConfirm = true;
     });
   }
 
@@ -102,8 +148,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (didSignUp && mounted) {
       await _maybeOfferBiometrics();
     }
-
-    // Auth state stream in _AuthGate will navigate to HomeShell automatically.
   }
 
   Future<void> _googleSignIn() async {
@@ -126,7 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      // Show the real exception so SHA-1 / Play Services issues are visible.
       _showError('Google: $e');
     }
   }
@@ -263,282 +306,224 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  Widget _animatedReveal({required bool show, required Widget child}) {
-    return AnimatedSize(
-      duration: _kAnim,
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: AnimatedSwitcher(
-        duration: _kAnim,
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: SizeTransition(
-            sizeFactor: anim,
-            axisAlignment: -1,
-            child: child,
-          ),
-        ),
-        child: show
-            ? KeyedSubtree(key: const ValueKey('shown'), child: child)
-            : const SizedBox.shrink(key: ValueKey('hidden')),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 16),
-              const Center(
-                child: Icon(
-                  Icons.favorite,
-                  size: 56,
-                  color: AppColors.stravaOrange,
+    return Container(
+      decoration: ShapeDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        shape: ContinuousRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: SegmentedButton<bool>(
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor: AppColors.stravaOrange,
+                  selectedForegroundColor: Colors.white,
+                  foregroundColor: AppColors.subtleGrey,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+                segments: const [
+                  ButtonSegment(value: false, label: Text('CONNEXION')),
+                  ButtonSegment(value: true, label: Text('INSCRIPTION')),
+                ],
+                selected: {_isSignUp},
+                onSelectionChanged: (s) => _setMode(s.first),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Visibility(
+              visible: _isSignUp,
+              maintainState: true,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextFormField(
+                  controller: _usernameCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Nom d\'utilisateur'),
+                  validator: _isSignUp ? _validateRequired : null,
                 ),
               ),
-              const SizedBox(height: 12),
-              const Center(
-                child: Text(
-                  'TRAIN YOUR HEART',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+            ),
+            TextFormField(
+              controller: _emailCtrl,
+              decoration: const InputDecoration(labelText: 'Email'),
+              keyboardType: TextInputType.emailAddress,
+              validator: _validateEmail,
+            ),
+            const SizedBox(height: 12),
+            _PasswordField(
+              controller: _passwordCtrl,
+              label: 'Mot de passe',
+              validator: _validatePassword,
+            ),
+            Visibility(
+              visible: _isSignUp,
+              maintainState: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 12),
+                  _PasswordField(
+                    controller: _passwordConfirmCtrl,
+                    label: 'Confirmer le mot de passe',
+                    validator: _isSignUp ? _validatePasswordConfirm : null,
                   ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Center(
-                child: Text(
-                  'Run. Track. Progress.',
-                  style: TextStyle(
-                    color: AppColors.subtleGrey,
-                    fontSize: 13,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              GlassCard(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Center(
-                        child: SegmentedButton<bool>(
-                          style: SegmentedButton.styleFrom(
-                            selectedBackgroundColor: AppColors.stravaOrange,
-                            selectedForegroundColor: Colors.white,
-                            foregroundColor: AppColors.subtleGrey,
-                            side: const BorderSide(color: Colors.white24),
-                          ),
-                          segments: const [
-                            ButtonSegment(value: false, label: Text('CONNEXION')),
-                            ButtonSegment(value: true, label: Text('INSCRIPTION')),
-                          ],
-                          selected: {_isSignUp},
-                          onSelectionChanged: (s) => _setMode(s.first),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _weightCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'Poids (kg)'),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          validator: _isSignUp
+                              ? (v) =>
+                                  _validateDouble(v, min: 20, max: 300)
+                              : null,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      _animatedReveal(
-                        show: _isSignUp,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: TextFormField(
-                            controller: _usernameCtrl,
-                            decoration: const InputDecoration(
-                                labelText: 'Nom d\'utilisateur'),
-                            validator: _isSignUp ? _validateRequired : null,
-                          ),
-                        ),
-                      ),
-                      TextFormField(
-                        controller: _emailCtrl,
-                        decoration: const InputDecoration(labelText: 'Email'),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: _validateEmail,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _passwordCtrl,
-                        decoration: InputDecoration(
-                          labelText: 'Mot de passe',
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.subtleGrey,
-                            ),
-                            onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword),
-                          ),
-                        ),
-                        obscureText: _obscurePassword,
-                        validator: _validatePassword,
-                      ),
-                      _animatedReveal(
-                        show: _isSignUp,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _passwordConfirmCtrl,
-                              decoration: InputDecoration(
-                                labelText: 'Confirmer le mot de passe',
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePasswordConfirm
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                    color: AppColors.subtleGrey,
-                                  ),
-                                  onPressed: () => setState(() =>
-                                      _obscurePasswordConfirm =
-                                          !_obscurePasswordConfirm),
-                                ),
-                              ),
-                              obscureText: _obscurePasswordConfirm,
-                              validator: _isSignUp
-                                  ? _validatePasswordConfirm
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _weightCtrl,
-                                    decoration: const InputDecoration(
-                                        labelText: 'Poids (kg)'),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                            decimal: true),
-                                    validator: _isSignUp
-                                        ? (v) => _validateDouble(v,
-                                            min: 20, max: 300)
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _ageCtrl,
-                                    decoration:
-                                        const InputDecoration(labelText: 'Âge'),
-                                    keyboardType: TextInputType.number,
-                                    validator: _isSignUp
-                                        ? (v) =>
-                                            _validateInt(v, min: 5, max: 120)
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _goalCtrl,
-                              decoration: const InputDecoration(
-                                  labelText: 'Objectif quotidien (km)'),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              validator: _isSignUp
-                                  ? (v) =>
-                                      _validateDouble(v, min: 0.1, max: 100)
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
-                            : AnimatedSwitcher(
-                                duration: _kAnim,
-                                child: Text(
-                                  _isSignUp
-                                      ? 'CRÉER MON COMPTE'
-                                      : 'SE CONNECTER',
-                                  key: ValueKey(_isSignUp),
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Divider(
-                                color: Colors.white.withValues(alpha: 0.12)),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'OU',
-                              style: TextStyle(
-                                color: AppColors.subtleGrey,
-                                fontSize: 12,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Divider(
-                                color: Colors.white.withValues(alpha: 0.12)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _loading ? null : _googleSignIn,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.18)),
-                          shape: const StadiumBorder(),
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: SvgPicture.asset(
-                          'assets/google_g.svg',
-                          width: 20,
-                          height: 20,
-                        ),
-                        label: const Text(
-                          'CONTINUER AVEC GOOGLE',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.8,
-                          ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _ageCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'Âge'),
+                          keyboardType: TextInputType.number,
+                          validator: _isSignUp
+                              ? (v) => _validateInt(v, min: 5, max: 120)
+                              : null,
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _goalCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Objectif quotidien (km)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    validator: _isSignUp
+                        ? (v) => _validateDouble(v, min: 0.1, max: 100)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(_isSignUp ? 'CRÉER MON COMPTE' : 'SE CONNECTER'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child:
+                      Divider(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OU',
+                    style: TextStyle(
+                      color: AppColors.subtleGrey,
+                      fontSize: 12,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child:
+                      Divider(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _loading ? null : _googleSignIn,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.18)),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: SvgPicture.asset(
+                'assets/google_g.svg',
+                width: 20,
+                height: 20,
+              ),
+              label: const Text(
+                'CONTINUER AVEC GOOGLE',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// Owns its own obscure-text state so toggling visibility doesn't rebuild the
+/// whole form.
+class _PasswordField extends StatefulWidget {
+  final TextEditingController controller;
+  final String label;
+  final FormFieldValidator<String>? validator;
+  const _PasswordField({
+    required this.controller,
+    required this.label,
+    this.validator,
+  });
+
+  @override
+  State<_PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<_PasswordField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: widget.controller,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscure ? Icons.visibility_off : Icons.visibility,
+            color: AppColors.subtleGrey,
+          ),
+          onPressed: () => setState(() => _obscure = !_obscure),
+        ),
+      ),
+      obscureText: _obscure,
+      validator: widget.validator,
     );
   }
 }

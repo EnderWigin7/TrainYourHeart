@@ -1,9 +1,12 @@
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/animated_number.dart';
+import 'route_planner_screen.dart';
 import 'run_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -15,6 +18,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _firestore = FirestoreService();
+  final _storage = StorageService();
+  final _confetti = ConfettiController(duration: const Duration(milliseconds: 1200));
   UserProfile _profile = UserProfile.empty;
   double _todayKm = 0;
   Stats _stats = Stats.empty;
@@ -32,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     FirestoreService.runsChanged.removeListener(_refresh);
     UnitsService.instance.removeListener(_onUnitsChanged);
+    _confetti.dispose();
     super.dispose();
   }
 
@@ -51,12 +57,33 @@ class _HomeScreenState extends State<HomeScreen> {
       _stats = stats;
       _loading = false;
     });
+    await _maybeCelebrate(profile, km);
+  }
+
+  Future<void> _maybeCelebrate(UserProfile profile, double km) async {
+    if (profile.dailyGoalKm <= 0 || km < profile.dailyGoalKm) return;
+    final today = DateTime.now();
+    final iso = '${today.year}-${today.month}-${today.day}';
+    final last = await _storage.lastConfettiDayIso();
+    if (last == iso) return;
+    await _storage.setLastConfettiDay(iso);
+    if (!mounted) return;
+    _confetti.play();
   }
 
   Future<void> _startRun() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => RunScreen(weightKg: _profile.weightKg),
+      ),
+    );
+    _refresh();
+  }
+
+  Future<void> _planRoute() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const RoutePlannerScreen(),
       ),
     );
     _refresh();
@@ -78,7 +105,34 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('TRAIN YOUR HEART'),
       ),
-      body: RefreshIndicator(
+      body: Stack(
+        children: [
+          _buildBody(units, goal, progress, completed),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confetti,
+              blastDirectionality: BlastDirectionality.explosive,
+              numberOfParticles: 18,
+              maxBlastForce: 16,
+              minBlastForce: 6,
+              gravity: 0.25,
+              shouldLoop: false,
+              colors: const [
+                AppColors.stravaOrange,
+                Colors.white,
+                Color(0xFF7A3FBF),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(UnitsService units, double goal, double progress,
+      bool completed) {
+    return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           padding: EdgeInsets.fromLTRB(
@@ -124,12 +178,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: const Text('COMMENCER UNE COURSE'),
               ),
             ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _planRoute,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.18)),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.map_outlined,
+                  color: AppColors.stravaOrange),
+              label: const Text(
+                'PLANIFIER UN ITINÉRAIRE',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             const _MotivationCard(),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

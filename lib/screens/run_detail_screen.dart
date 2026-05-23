@@ -2,12 +2,13 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/run.dart';
+import '../services/firestore_service.dart';
 import '../services/run_share_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/run_route_map.dart';
 
-class RunDetailScreen extends StatelessWidget {
+class RunDetailScreen extends StatefulWidget {
   final Run run;
   final String username;
   const RunDetailScreen({
@@ -15,6 +16,29 @@ class RunDetailScreen extends StatelessWidget {
     required this.run,
     required this.username,
   });
+
+  @override
+  State<RunDetailScreen> createState() => _RunDetailScreenState();
+}
+
+class _RunDetailScreenState extends State<RunDetailScreen> {
+  List<PbBeat> _beats = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _detectPbs();
+  }
+
+  Future<void> _detectPbs() async {
+    try {
+      final beats = await FirestoreService().detectPbBeats(widget.run.id);
+      if (!mounted) return;
+      setState(() => _beats = beats);
+    } catch (_) {
+      // Silent — celebration is best-effort.
+    }
+  }
 
   String _fmtDuration(Duration d) {
     final h = d.inHours;
@@ -36,8 +60,8 @@ class RunDetailScreen extends StatelessWidget {
   Future<void> _share(BuildContext context) async {
     try {
       await RunShareService().shareRun(
-        run: run,
-        username: username,
+        run: widget.run,
+        username: widget.username,
         context: context,
       );
     } catch (_) {
@@ -51,13 +75,17 @@ class RunDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final run = widget.run;
     final units = UnitsService.instance;
     final avgPace = units.paceMinPerUnit(run.averageSpeedKmh);
     final dateLabel =
         DateFormat('EEEE d MMMM yyyy, HH:mm', 'fr_FR').format(run.startTime);
+    final appBarTitle = run.title != null && run.title!.isNotEmpty
+        ? run.title!
+        : 'DÉTAIL';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DÉTAIL'),
+        title: Text(appBarTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.ios_share),
@@ -69,6 +97,20 @@ class RunDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          if (_beats.isNotEmpty) ...[
+            _PbBanner(beats: _beats),
+            const SizedBox(height: 16),
+          ],
+          ..._buildBody(context, units, avgPace, dateLabel),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildBody(
+      BuildContext context, UnitsService units, double avgPace, String dateLabel) {
+    final run = widget.run;
+    return [
           Text(
             dateLabel,
             style: const TextStyle(
@@ -207,27 +249,15 @@ class RunDetailScreen extends StatelessWidget {
                         children: [
                           for (int i = 1; i <= 5; i++)
                             Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: i <= run.difficulty!
-                                      ? AppColors.stravaOrange
-                                      : Colors.white12,
-                                ),
-                                child: Text(
-                                  '$i',
-                                  style: TextStyle(
-                                    color: i <= run.difficulty!
-                                        ? Colors.white
-                                        : AppColors.subtleGrey,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(
+                                i <= run.difficulty!
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                size: 28,
+                                color: i <= run.difficulty!
+                                    ? AppColors.stravaOrange
+                                    : AppColors.subtleGrey,
                               ),
                             ),
                         ],
@@ -330,7 +360,70 @@ class RunDetailScreen extends StatelessWidget {
               ),
             ),
           ],
-        ],
+    ];
+  }
+}
+
+class _PbBanner extends StatelessWidget {
+  final List<PbBeat> beats;
+  const _PbBanner({required this.beats});
+
+  String _label(PbBeat b) {
+    final units = UnitsService.instance;
+    switch (b.kind) {
+      case PbKind.distance:
+        return 'Distance — ${units.distance(b.current).toStringAsFixed(2)} '
+            '${units.distanceUnit()} '
+            '(+${units.distance(b.delta).toStringAsFixed(2)} ${units.distanceUnit()})';
+      case PbKind.speed:
+        return 'Vitesse — ${units.speed(b.current).toStringAsFixed(1)} '
+            '${units.speedUnit()} '
+            '(+${units.speed(b.delta).toStringAsFixed(1)} ${units.speedUnit()})';
+      case PbKind.calories:
+        return 'Calories — ${b.current.toStringAsFixed(0)} kcal '
+            '(+${b.delta.toStringAsFixed(0)} kcal)';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.stravaOrange.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.emoji_events,
+                    color: AppColors.stravaOrange, size: 22),
+                SizedBox(width: 8),
+                Text(
+                  'NOUVEAU RECORD !',
+                  style: TextStyle(
+                    color: AppColors.stravaOrange,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final b in beats)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _label(b),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

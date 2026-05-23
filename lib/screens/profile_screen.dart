@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/user_profile.dart';
+import '../services/achievements_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/profile_photo_service.dart';
 import '../services/units_service.dart';
 import '../theme.dart';
 import '../widgets/animated_number.dart';
+import 'achievements_screen.dart';
 import 'profile_edit_screen.dart';
 import 'settings_screen.dart';
 
@@ -25,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   UserProfile _profile = UserProfile.empty;
   LifetimeStats _lifetime = LifetimeStats.empty;
+  List<Achievement> _achievements = const [];
   bool _loading = true;
 
   @override
@@ -49,10 +52,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     final p = await _firestore.loadProfile();
     final stats = await _firestore.loadLifetimeStats();
+    final achievements = await AchievementsService().compute();
     if (!mounted) return;
     setState(() {
       _profile = p ?? UserProfile.empty;
       _lifetime = stats;
+      _achievements = achievements;
       _loading = false;
     });
   }
@@ -253,6 +258,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         '${v.toStringAsFixed(2)} ${units.distanceUnit()}',
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const _SectionLabel('BADGES'),
+          const SizedBox(height: 8),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AchievementsScreen(),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.emoji_events,
+                            color: AppColors.stravaOrange),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${_achievements.where((a) => a.unlocked).length} / ${_achievements.length} débloqués',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right,
+                            color: AppColors.subtleGrey),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final a in _achievements
+                            .where((a) => a.unlocked)
+                            .take(6))
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.stravaOrange
+                                  .withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(a.icon,
+                                    color: AppColors.stravaOrange, size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  a.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (_achievements.every((a) => !a.unlocked))
+                          const Text(
+                            'Aucun badge débloqué pour l\'instant.',
+                            style: TextStyle(
+                              color: AppColors.subtleGrey,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -253,15 +253,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                           .stravaOrange),
                                                   const SizedBox(width: 8),
                                                   Expanded(
-                                                    child: Text(
-                                                      DateFormat(
-                                                              'EEEE d MMM, HH:mm',
-                                                              'fr_FR')
-                                                          .format(r.startTime),
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        if (r.title != null &&
+                                                            r.title!.isNotEmpty)
+                                                          Text(
+                                                            r.title!,
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              fontSize: 15,
+                                                            ),
+                                                          ),
+                                                        Text(
+                                                          DateFormat(
+                                                                  'EEEE d MMM, HH:mm',
+                                                                  'fr_FR')
+                                                              .format(r.startTime),
+                                                          style: TextStyle(
+                                                            fontWeight: r.title !=
+                                                                    null
+                                                                ? FontWeight.w400
+                                                                : FontWeight.w600,
+                                                            fontSize:
+                                                                r.title != null
+                                                                    ? 12
+                                                                    : 14,
+                                                            color: r.title != null
+                                                                ? AppColors
+                                                                    .subtleGrey
+                                                                : Colors.white,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
                                                   IconButton(

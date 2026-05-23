@@ -29,6 +29,7 @@ class Run {
   final String? note;
   final int? difficulty;
   final List<LatLng> points;
+  final String? title;
 
   Run({
     required this.id,
@@ -41,6 +42,7 @@ class Run {
     this.note,
     this.difficulty,
     this.points = const [],
+    this.title,
   });
 
   double get distanceKm => distanceMeters / 1000.0;
@@ -58,6 +60,7 @@ class Run {
         'points': points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList(),
+        'title': title,
       };
 
   factory Run.fromJson(Map<String, dynamic> json) => Run(
@@ -84,5 +87,6 @@ class Run {
                 })
                 .toList() ??
             const [],
+        title: json['title'] as String?,
       );
 }
